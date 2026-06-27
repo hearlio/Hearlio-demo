@@ -93,21 +93,28 @@ function speakText(text,gender,onEnd){
 }
 
 async function callAI(systemPrompt, messages){
-  const res = await fetch(WORKER_URL,{
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({
-      model: GROQ_MODEL,
-      max_tokens: 1000,
-      messages:[
-        {role:"system", content: systemPrompt},
-        ...messages.map(m=>({role:m.role==="assistant"?"assistant":"user", content:m.text||m.content}))
-      ]
-    })
-  });
-  const d=await res.json();
-  if(d.error)throw new Error(d.error.message);
-  return d.choices?.[0]?.message?.content||"";
+  try {
+    const res = await fetch(WORKER_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        messages: [
+          { role: "system", content: systemPrompt },
+          ...messages.map(m => ({
+            role: m.role === "assistant" ? "assistant" : "user",
+            content: m.text || m.content || ""
+          }))
+        ]
+      })
+    });
+    if (!res.ok) throw new Error("Worker error: " + res.status);
+    const d = await res.json();
+    if (d.error) throw new Error(d.error.message);
+    return d.choices?.[0]?.message?.content || "";
+  } catch(e) {
+    console.error("AI Error:", e);
+    throw e;
+  }
 }
 
 function App(){
