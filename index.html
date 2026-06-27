@@ -1,0 +1,393 @@
+<!-- © 2026 Awais Rashid. All Rights Reserved. Hearlio — Your Personal HeartSpace. Unauthorized copying or reselling is prohibited. -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Hearlio 🌟 Your Personal HeartSpace</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:linear-gradient(135deg,#f5f0ff 0%,#fff0f5 50%,#fff5f0 100%);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:12px}
+#root{width:100%;max-width:520px}
+input,button,select{font-family:inherit}
+@keyframes bounce{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-6px)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+@keyframes fadein{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.msg{animation:fadein 0.3s ease}
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-thumb{background:#CECBF6;border-radius:4px}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const {useState,useRef,useEffect}=React;
+
+// ============================================================
+// 🔑 REPLACE THIS WITH YOUR GROQ API KEY
+// Get it FREE at: console.groq.com (no card needed)
+// ============================================================
+const WORKER_URL = "https://falling-block-5000.rawais086.workers.dev/";
+const GROQ_MODEL = "llama3-70b-8192";
+
+const UC=[
+  {bg:"#FBEAF0",text:"#72243E",border:"#F4C0D1"},
+  {bg:"#FAECE7",text:"#712B13",border:"#F5C4B3"},
+  {bg:"#FAEEDA",text:"#633806",border:"#FAC775"},
+  {bg:"#FCEBEB",text:"#791F1F",border:"#F7C1C1"},
+];
+const AC=[
+  {bg:"#EEEDFE",text:"#3C3489",border:"#CECBF6"},
+  {bg:"#E1F5EE",text:"#085041",border:"#9FE1CB"},
+  {bg:"#E6F1FB",text:"#0C447C",border:"#B5D4F4"},
+  {bg:"#EAF3DE",text:"#27500A",border:"#C0DD97"},
+];
+const TOPICS=[
+  {label:"Romantic 💕",value:"romantic relationships and love life"},
+  {label:"Friendship 👫",value:"friendships and social bonds"},
+  {label:"Family 👨‍👩‍👧",value:"family dynamics and relationships"},
+  {label:"Work 💼",value:"workplace relationships and professional bonds"},
+];
+const MOODS=["😊","😐","😔","😤","😰"];
+const MLABELS=["Happy","Okay","Sad","Frustrated","Anxious"];
+const LANGUAGES=[
+  {code:"en",label:"🇬🇧 English",sr:"en-US",dir:"ltr"},
+  {code:"ur",label:"🇵🇰 Urdu",   sr:"ur-PK",dir:"rtl"},
+  {code:"ar",label:"🇸🇦 Arabic", sr:"ar-SA",dir:"rtl"},
+  {code:"de",label:"🇩🇪 German", sr:"de-DE",dir:"ltr"},
+  {code:"fr",label:"🇫🇷 French", sr:"fr-FR",dir:"ltr"},
+  {code:"es",label:"🇪🇸 Spanish",sr:"es-ES",dir:"ltr"},
+];
+const LANG_INST={
+  en:"Always respond in English.",
+  ur:"ہمیشہ صرف اردو میں جواب دیں۔",
+  ar:"أجب دائماً باللغة العربية فقط.",
+  de:"Antworte immer nur auf Deutsch.",
+  fr:"Réponds toujours uniquement en français.",
+  es:"Responde siempre solo en español.",
+};
+
+function timeAgo(ts){const d=Date.now()-ts;if(d<60000)return"just now";if(d<3600000)return Math.floor(d/60000)+"m ago";if(d<86400000)return Math.floor(d/3600000)+"h ago";return Math.floor(d/86400000)+"d ago";}
+function gp(){try{return JSON.parse(localStorage.getItem("h_projects")||"[]")}catch{return[]}}
+function sp(l){localStorage.setItem("h_projects",JSON.stringify(l))}
+function gpr(id){try{return JSON.parse(localStorage.getItem("h_p_"+id)||"null")}catch{return null}}
+function spr(id,d){localStorage.setItem("h_p_"+id,JSON.stringify(d))}
+function dpr(id){localStorage.removeItem("h_p_"+id)}
+function gid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
+
+function speakText(text,gender,onEnd){
+  window.speechSynthesis.cancel();
+  const clean=text.replace(/[\u{1F300}-\u{1FFFF}]/gu,"").replace(/[💕🌟💙💗🌸]/g,"").trim();
+  const u=new SpeechSynthesisUtterance(clean);
+  u.rate=0.95;u.pitch=gender==="female"?1.2:0.85;
+  const voices=window.speechSynthesis.getVoices();
+  const pref=voices.filter(v=>gender==="female"
+    ?/female|samantha|victoria|karen|emma|aria|jenny|sonia|zira/i.test(v.name)
+    :/male|david|mark|daniel|alex|james|ryan/i.test(v.name));
+  if(pref.length)u.voice=pref[0];
+  u.onend=onEnd||null;
+  window.speechSynthesis.speak(u);
+}
+
+async function callAI(systemPrompt, messages){
+  const res = await fetch(WORKER_URL,{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({
+      model: GROQ_MODEL,
+      max_tokens: 1000,
+      messages:[
+        {role:"system", content: systemPrompt},
+        ...messages.map(m=>({role:m.role==="assistant"?"assistant":"user", content:m.text||m.content}))
+      ]
+    })
+  });
+  const d=await res.json();
+  if(d.error)throw new Error(d.error.message);
+  return d.choices?.[0]?.message?.content||"";
+}
+
+function App(){
+  const [screen,setScreen]=useState("projects");
+  const [projects,setProjectsState]=useState(gp);
+  const [active,setActive]=useState(null);
+  const [nameInput,setNameInput]=useState("");
+  const [mood,setMood]=useState(null);
+  const [lang,setLang]=useState("en");
+  const [input,setInput]=useState("");
+  const [loading,setLoading]=useState(false);
+  const [uIdx,setUIdx]=useState(0);
+  const [aIdx,setAIdx]=useState(0);
+  const [showMem,setShowMem]=useState(false);
+  const [vGender,setVGender]=useState("female");
+  const [vOn,setVOn]=useState(true);
+  const [listening,setListening]=useState(false);
+  const [speaking,setSpeaking]=useState(false);
+  const recRef=useRef(null);
+  const bottomRef=useRef(null);
+
+  useEffect(()=>{window.speechSynthesis?.getVoices();return()=>window.speechSynthesis?.cancel();},[]);
+  useEffect(()=>{bottomRef.current?.scrollIntoView({behavior:"smooth"});},[active?.messages,loading]);
+
+  const activeLang=LANGUAGES.find(l=>l.code===lang)||LANGUAGES[0];
+
+  function buildSys(p){
+    return `You are Hearlio, a warm empathetic uplifting relationship and friendship guide. Tagline: "Your Personal HeartSpace". Speak like a caring wise best friend, never clinical. Use emojis naturally. User: ${p.name}, topic: ${p.topic}, mood: ${p.moodLabel} ${p.mood}.${p.memory?`\nMEMORY:\n${p.memory}`:""}\nBe warm, personal, actionable. Keep responses concise and heartfelt.\nLANGUAGE: ${LANG_INST[p.lang||"en"]}`;
+  }
+
+  function doSpeak(text){if(!vOn)return;setSpeaking(true);speakText(text,vGender,()=>setSpeaking(false));}
+
+  function toggleListen(){
+    if(listening){try{recRef.current?.stop();}catch(e){}setListening(false);return;}
+    const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+    if(!SR){alert("Voice input works only in Google Chrome.");return;}
+    try{
+      const r=new SR();
+      r.lang=activeLang.sr;r.continuous=true;r.interimResults=true;
+      r.onstart=()=>setListening(true);
+      r.onresult=e=>{
+        let final="",interim="";
+        for(let i=0;i<e.results.length;i++){
+          if(e.results[i].isFinal)final+=e.results[i][0].transcript;
+          else interim+=e.results[i][0].transcript;
+        }
+        setInput(final||interim);
+      };
+      r.onerror=e=>{
+        setListening(false);
+        if(e.error==="not-allowed")alert("Microphone blocked. Allow mic in browser settings then refresh.");
+      };
+      r.onend=()=>setListening(false);
+      recRef.current=r;r.start();
+    }catch(e){alert("Could not start mic. Use Chrome.");setListening(false);}
+  }
+
+  function saveProj(p){
+    spr(p.id,p);
+    const list=projects.map(x=>x.id===p.id?{...x,preview:p.messages.slice(-1)[0]?.text?.slice(0,60)||"",updatedAt:p.updatedAt}:x);
+    setProjectsState(list);sp(list);
+  }
+
+  async function createProject(topic){
+    const id=gid();const moodLabel=MLABELS[MOODS.indexOf(mood)];
+    const p={id,name:nameInput.trim(),topic,mood,moodLabel,lang,messages:[],memory:"",createdAt:Date.now(),updatedAt:Date.now()};
+    setActive(p);setScreen("chat");setLoading(true);
+    try{
+      const text=await callAI(buildSys(p),[{role:"user",content:`Hi I'm ${p.name}, feeling ${moodLabel}. I need help with ${topic}.`}]);
+      const upd={...p,messages:[{role:"assistant",text,colorIdx:0}],updatedAt:Date.now()};
+      setActive(upd);setAIdx(1);
+      const list=[...projects,{id,name:p.name,topic,lang,preview:text.slice(0,60),updatedAt:Date.now()}];
+      setProjectsState(list);sp(list);spr(id,upd);doSpeak(text);
+    }catch(e){
+      const text=`Hey ${p.name}! 🌟 Welcome to your HeartSpace. Tell me what's on your heart 💕`;
+      const upd={...p,messages:[{role:"assistant",text,colorIdx:0}],updatedAt:Date.now()};
+      setActive(upd);doSpeak(text);
+      const list=[...projects,{id,name:p.name,topic,lang,preview:text.slice(0,60),updatedAt:Date.now()}];
+      setProjectsState(list);sp(list);spr(id,upd);
+    }
+    setLoading(false);
+  }
+
+  async function sendMessage(){
+    const msg=input.trim();if(!msg||loading)return;
+    const userMsg={role:"user",text:msg,colorIdx:uIdx%4};
+    setUIdx(i=>i+1);
+    const newMsgs=[...(active.messages||[]),userMsg];
+    setActive(prev=>({...prev,messages:newMsgs}));setInput("");setLoading(true);
+    try{
+      const text=await callAI(buildSys(active),newMsgs);
+      const final={...active,messages:[...newMsgs,{role:"assistant",text,colorIdx:aIdx%4}],updatedAt:Date.now()};
+      setActive(final);setAIdx(i=>i+1);saveProj(final);doSpeak(text);
+    }catch{
+      const text="I'm here for you 💕 Please try again.";
+      setActive(prev=>({...prev,messages:[...newMsgs,{role:"assistant",text,colorIdx:aIdx%4}]}));
+    }
+    setLoading(false);
+  }
+
+  async function saveMemory(){
+    if(!active||loading)return;setLoading(true);
+    const convo=active.messages.map(m=>`${m.role==="user"?active.name:"Hearlio"}: ${m.text}`).join("\n");
+    try{
+      const memory=await callAI("Extract bullet-point memory of key facts, relationships, emotions, issues. Merge with existing. Return bullets only.",[{role:"user",content:`Conversation:\n${convo}\n\nExisting:\n${active.memory||"None"}`}]);
+      const final={...active,memory,updatedAt:Date.now()};setActive(final);spr(final.id,final);
+    }catch{}setLoading(false);
+  }
+
+  function openProject(id){const p=gpr(id);if(p){setActive(p);setLang(p.lang||"en");setScreen("chat");}}
+  function delProject(id,e){e.stopPropagation();dpr(id);const list=projects.filter(p=>p.id!==id);setProjectsState(list);sp(list);}
+  function goBack(){window.speechSynthesis?.cancel();setScreen("projects");setActive(null);setShowMem(false);setMood(null);setNameInput("");setSpeaking(false);setLang("en");}
+
+  const tColor={"romantic relationships and love life":"#FBEAF0","friendships and social bonds":"#E6F1FB","family dynamics and relationships":"#EAF3DE","workplace relationships and professional bonds":"#FAEEDA"};
+  const tIcon={"romantic relationships and love life":"💕","friendships and social bonds":"👫","family dynamics and relationships":"👨‍👩‍👧","workplace relationships and professional bonds":"💼"};
+
+  return(
+    <div style={{background:"white",borderRadius:20,boxShadow:"0 8px 40px rgba(83,74,183,0.12)",padding:"1.2rem",display:"flex",flexDirection:"column",minHeight:580}}>
+
+      {/* Header */}
+      <div style={{background:"linear-gradient(135deg,#EEEDFE,#FBEAF0,#FAECE7)",borderRadius:14,padding:"0.9rem 1.1rem",marginBottom:"1rem",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <div>
+          <div style={{fontSize:20,fontWeight:600,color:"#3C3489"}}>🌟 Hearlio</div>
+          <div style={{fontSize:11,color:"#534AB7"}}>Your Personal HeartSpace</div>
+        </div>
+        <div style={{display:"flex",gap:5,flexWrap:"wrap",justifyContent:"flex-end",alignItems:"center"}}>
+          {screen==="chat"&&<>
+            <select value={lang} onChange={e=>setLang(e.target.value)} style={{fontSize:11,padding:"4px 7px",borderRadius:20,border:"0.5px solid #AFA9EC",background:"#EEEDFE",color:"#3C3489",cursor:"pointer"}}>
+              {LANGUAGES.map(l=><option key={l.code} value={l.code}>{l.label}</option>)}
+            </select>
+            <div style={{display:"flex",borderRadius:20,overflow:"hidden",border:"0.5px solid #AFA9EC"}}>
+              <button onClick={()=>setVGender("female")} style={{padding:"4px 8px",fontSize:11,border:"none",background:vGender==="female"?"#534AB7":"white",color:vGender==="female"?"white":"#534AB7",cursor:"pointer"}}>👩</button>
+              <button onClick={()=>setVGender("male")} style={{padding:"4px 8px",fontSize:11,border:"none",background:vGender==="male"?"#534AB7":"white",color:vGender==="male"?"white":"#534AB7",cursor:"pointer"}}>👨</button>
+            </div>
+            <button onClick={()=>{if(vOn)window.speechSynthesis?.cancel();setVOn(v=>!v);setSpeaking(false);}} style={{fontSize:11,padding:"4px 8px",borderRadius:20,border:"0.5px solid #AFA9EC",background:vOn?"#EEEDFE":"white",color:"#3C3489",cursor:"pointer"}}>{vOn?"🔊":"🔇"}</button>
+            {speaking&&<button onClick={()=>{window.speechSynthesis?.cancel();setSpeaking(false);}} style={{fontSize:11,padding:"4px 8px",borderRadius:20,border:"0.5px solid #F5C4B3",background:"#FAECE7",color:"#712B13",cursor:"pointer"}}>⏹</button>}
+            <button onClick={()=>setShowMem(v=>!v)} style={{fontSize:11,padding:"4px 8px",borderRadius:20,border:"0.5px solid #AFA9EC",background:showMem?"#EEEDFE":"white",color:"#3C3489",cursor:"pointer"}}>🧠</button>
+            <button onClick={saveMemory} style={{fontSize:11,padding:"4px 8px",borderRadius:20,border:"0.5px solid #9FE1CB",background:"white",color:"#085041",cursor:"pointer"}}>💾</button>
+            <button onClick={goBack} style={{fontSize:11,padding:"4px 8px",borderRadius:20,border:"0.5px solid #ccc",background:"white",color:"#888",cursor:"pointer"}}>←</button>
+          </>}
+          {(screen==="setup_name"||screen==="setup_mood")&&<button onClick={()=>setScreen("projects")} style={{fontSize:11,padding:"4px 10px",borderRadius:20,border:"0.5px solid #ccc",background:"white",color:"#888",cursor:"pointer"}}>← Back</button>}
+        </div>
+      </div>
+
+      {/* Projects */}
+      {screen==="projects"&&(
+        <div style={{flex:1,display:"flex",flexDirection:"column",gap:12}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <span style={{fontSize:15,fontWeight:500,color:"#222"}}>Your Heart Stories 💗</span>
+            <button onClick={()=>setScreen("setup_name")} style={{padding:"7px 16px",borderRadius:20,border:"none",background:"#534AB7",color:"white",fontSize:13,cursor:"pointer"}}>+ New Story</button>
+          </div>
+          {projects.length===0
+            ?<div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:14,padding:"2rem",textAlign:"center"}}>
+               <span style={{fontSize:44}}>💕</span>
+               <p style={{color:"#888",fontSize:15}}>No stories yet. Start your first HeartSpace conversation!</p>
+               <button onClick={()=>setScreen("setup_name")} style={{padding:"10px 28px",borderRadius:20,border:"none",background:"#534AB7",color:"white",fontSize:14,cursor:"pointer"}}>Begin 🌟</button>
+             </div>
+            :[...projects].sort((a,b)=>b.updatedAt-a.updatedAt).map(p=>(
+              <div key={p.id} onClick={()=>openProject(p.id)} style={{padding:"12px 14px",borderRadius:14,border:"0.5px solid #e0e0e0",background:tColor[p.topic]||"#f9f9f9",cursor:"pointer",display:"flex",alignItems:"center",gap:12}}>
+                <span style={{fontSize:22}}>{tIcon[p.topic]||"💬"}</span>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontWeight:500,fontSize:14,color:"#222"}}>{p.name} {p.lang&&p.lang!=="en"&&<span style={{fontSize:11,opacity:0.6}}>{LANGUAGES.find(l=>l.code===p.lang)?.label}</span>}</div>
+                  <div style={{fontSize:12,color:"#888",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.preview||"Tap to continue..."}</div>
+                </div>
+                <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4}}>
+                  <span style={{fontSize:11,color:"#aaa"}}>{timeAgo(p.updatedAt)}</span>
+                  <button onClick={e=>delProject(p.id,e)} style={{fontSize:11,padding:"2px 8px",borderRadius:10,border:"0.5px solid #F7C1C1",background:"#FCEBEB",color:"#791F1F",cursor:"pointer"}}>remove</button>
+                </div>
+              </div>
+            ))
+          }
+        </div>
+      )}
+
+      {/* Setup Name */}
+      {screen==="setup_name"&&(
+        <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:24,padding:"1rem"}}>
+          <div style={{textAlign:"center"}}>
+            <p style={{fontSize:18,fontWeight:500,color:"#222",marginBottom:8}}>Welcome! I'm so glad you're here 💕</p>
+            <p style={{fontSize:14,color:"#888"}}>What's your name? I'll remember your story forever.</p>
+          </div>
+          <div style={{display:"flex",gap:8,width:"100%",maxWidth:340}}>
+            <input value={nameInput} onChange={e=>setNameInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&nameInput.trim()&&setScreen("setup_mood")} placeholder="Your first name..." style={{flex:1,padding:"10px 14px",borderRadius:20,border:"1px solid #ddd",fontSize:15,outline:"none"}}/>
+            <button onClick={()=>nameInput.trim()&&setScreen("setup_mood")} style={{padding:"10px 18px",borderRadius:20,border:"none",background:"#534AB7",color:"white",fontSize:14,cursor:"pointer"}}>Next →</button>
+          </div>
+        </div>
+      )}
+
+      {/* Setup Mood */}
+      {screen==="setup_mood"&&(
+        <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16,padding:"1rem"}}>
+          <div style={{textAlign:"center"}}>
+            <p style={{fontSize:18,fontWeight:500,color:"#222",marginBottom:6}}>Hi {nameInput}! 🌸 How are you feeling?</p>
+            <p style={{fontSize:13,color:"#888"}}>No judgment here — this is your safe space.</p>
+          </div>
+          <div style={{display:"flex",gap:10,flexWrap:"wrap",justifyContent:"center"}}>
+            {MOODS.map((m,i)=>(
+              <button key={m} onClick={()=>setMood(m)} style={{fontSize:26,background:mood===m?"#EEEDFE":"transparent",border:mood===m?"2px solid #534AB7":"1px solid #ddd",borderRadius:12,padding:"8px 10px",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
+                {m}<span style={{fontSize:10,color:"#534AB7"}}>{MLABELS[i]}</span>
+              </button>
+            ))}
+          </div>
+          <div style={{width:"100%",maxWidth:420}}>
+            <p style={{fontSize:13,fontWeight:500,color:"#666",textAlign:"center",marginBottom:8}}>🌍 Choose your language:</p>
+            <div style={{display:"flex",flexWrap:"wrap",gap:6,justifyContent:"center"}}>
+              {LANGUAGES.map(l=>(
+                <button key={l.code} onClick={()=>setLang(l.code)} style={{padding:"6px 14px",borderRadius:20,border:lang===l.code?"2px solid #534AB7":"1px solid #AFA9EC",background:lang===l.code?"#534AB7":"#EEEDFE",color:lang===l.code?"white":"#3C3489",fontSize:12,cursor:"pointer",fontWeight:lang===l.code?600:400}}>
+                  {l.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          {mood&&(
+            <div style={{width:"100%",maxWidth:420}}>
+              <p style={{fontSize:13,fontWeight:500,color:"#666",textAlign:"center",marginBottom:10}}>What's on your heart?</p>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                {TOPICS.map(t=>(
+                  <button key={t.value} onClick={()=>createProject(t.value)} style={{padding:"12px 10px",borderRadius:14,border:"1px solid #AFA9EC",background:"#EEEDFE",color:"#3C3489",fontSize:14,cursor:"pointer",fontWeight:500}}>{t.label}</button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Chat */}
+      {screen==="chat"&&active&&(
+        <>
+          {showMem&&(
+            <div style={{background:"#EEEDFE",border:"0.5px solid #CECBF6",borderRadius:12,padding:"12px 14px",marginBottom:10,fontSize:13,color:"#3C3489",maxHeight:110,overflowY:"auto"}}>
+              <div style={{fontWeight:500,marginBottom:6}}>🧠 Hearlio remembers about {active.name}:</div>
+              <div style={{color:"#534AB7",lineHeight:1.6,whiteSpace:"pre-wrap"}}>{active.memory||"No memory yet. Chat then tap 💾 to save!"}</div>
+            </div>
+          )}
+          <div style={{flex:1,overflowY:"auto",display:"flex",flexDirection:"column",gap:12,padding:"4px 2px",minHeight:280,maxHeight:340}}>
+            {active.messages.map((m,i)=>{
+              const isUser=m.role==="user";
+              const c=isUser?UC[m.colorIdx%4]:AC[m.colorIdx%4];
+              const isRTL=/[\u0600-\u06FF\u0750-\u077F]/.test(m.text);
+              return(
+                <div key={i} className="msg" style={{display:"flex",justifyContent:isUser?"flex-end":"flex-start"}}>
+                  {!isUser&&<div style={{width:30,height:30,borderRadius:"50%",background:"#EEEDFE",border:"0.5px solid #AFA9EC",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,marginRight:8,flexShrink:0,alignSelf:"flex-end"}}>🌟</div>}
+                  <div onClick={()=>{if(!isUser)doSpeak(m.text);}} style={{maxWidth:"72%",padding:"10px 14px",borderRadius:isUser?"18px 18px 4px 18px":"18px 18px 18px 4px",background:c.bg,border:`0.5px solid ${c.border}`,color:c.text,fontSize:14,lineHeight:1.6,whiteSpace:"pre-wrap",textAlign:isRTL?"right":"left",direction:isRTL?"rtl":"ltr",cursor:!isUser?"pointer":"default"}}>
+                    {m.text}
+                    {!isUser&&<div style={{fontSize:10,marginTop:4,opacity:0.45}}>🔊 tap to replay</div>}
+                  </div>
+                  {isUser&&<div style={{width:30,height:30,borderRadius:"50%",background:"#FBEAF0",border:"0.5px solid #F4C0D1",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,marginLeft:8,flexShrink:0,alignSelf:"flex-end",fontWeight:600,color:"#72243E"}}>{active.name[0]?.toUpperCase()}</div>}
+                </div>
+              );
+            })}
+            {loading&&(
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <div style={{width:30,height:30,borderRadius:"50%",background:"#EEEDFE",border:"0.5px solid #AFA9EC",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>🌟</div>
+                <div style={{padding:"10px 16px",borderRadius:"18px 18px 18px 4px",background:"#EEEDFE",border:"0.5px solid #CECBF6"}}>
+                  <span style={{display:"inline-flex",gap:4}}>{[0,1,2].map(d=><span key={d} style={{width:6,height:6,borderRadius:"50%",background:"#534AB7",display:"inline-block",animation:`bounce 1s ${d*0.2}s infinite`}}/>)}</span>
+                </div>
+              </div>
+            )}
+            <div ref={bottomRef}/>
+          </div>
+          <div style={{display:"flex",gap:8,marginTop:10,alignItems:"center"}}>
+            <div style={{flex:1,display:"flex",borderRadius:24,border:`1.5px solid ${listening?"#534AB7":"#ddd"}`,overflow:"hidden",background:"white",transition:"border-color 0.2s"}}>
+              <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&sendMessage()} placeholder={listening?"Listening... 🎙️":"Share what's on your heart..."} style={{flex:1,padding:"10px 14px",border:"none",fontSize:14,outline:"none",background:"transparent"}}/>
+              <button onClick={toggleListen} style={{padding:"0 14px",border:"none",background:listening?"#534AB7":"transparent",color:listening?"white":"#534AB7",cursor:"pointer",fontSize:18,display:"flex",alignItems:"center"}}>
+                {listening?"⏹":"🎙️"}
+              </button>
+            </div>
+            <button onClick={sendMessage} disabled={loading||!input.trim()} style={{padding:"10px 18px",borderRadius:24,border:"none",background:loading||!input.trim()?"#ccc":"#534AB7",color:"white",fontSize:14,cursor:loading||!input.trim()?"default":"pointer"}}>Send 💕</button>
+          </div>
+          {listening&&<div style={{textAlign:"center",fontSize:12,color:"#534AB7",marginTop:6}}>🎙️ Listening in {activeLang.label} — tap ⏹ when done</div>}
+          {listening&&input&&<button onClick={()=>{try{recRef.current?.stop();}catch(e){}setListening(false);setTimeout(sendMessage,300);}} style={{marginTop:6,padding:"8px",borderRadius:20,border:"none",background:"#534AB7",color:"white",fontSize:13,cursor:"pointer",width:"100%"}}>Send this message 💕</button>}
+        </>
+      )}
+      <div style={{textAlign:"center",marginTop:16,fontSize:11,color:"#bbb"}}>
+        Built with ❤️ by <strong style={{color:"#534AB7"}}>Awais Rashid</strong> · 🌟 Hearlio
+      </div>
+    </div>
+  );
+}
+ReactDOM.render(<App/>,document.getElementById("root"));
+</script>
+</body>
+</html>
