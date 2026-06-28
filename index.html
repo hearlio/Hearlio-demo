@@ -63,7 +63,7 @@ const LANGUAGES=[
 ];
 const LANG_INST={
   en:"Always respond in English.",
-  ur:"ہمیشہ صرف اردو میں جواب دیں۔",
+  ur:"تم صرف اور صرف خالص اردو میں جواب دو۔ ہندی الفاظ یا دیوناگری رسم الخط بالکل استعمال نہ کرو۔ صرف اردو کے اصلی الفاظ اور نستعلیق رسم الخط میں لکھو۔",
   ar:"أجب دائماً باللغة العربية فقط.",
   de:"Antworte immer nur auf Deutsch.",
   fr:"Réponds toujours uniquement en français.",
@@ -142,10 +142,21 @@ function App(){
   const activeLang=LANGUAGES.find(l=>l.code===lang)||LANGUAGES[0];
 
   function buildSys(p){
-    return `You are Hearlio, a warm empathetic uplifting relationship and friendship guide. Tagline: "Your Personal HeartSpace". Speak like a caring wise best friend, never clinical. Use emojis naturally. User: ${p.name}, topic: ${p.topic}, mood: ${p.moodLabel} ${p.mood}.${p.memory?`\nMEMORY:\n${p.memory}`:""}\nBe warm, personal, actionable. Keep responses concise and heartfelt.\nLANGUAGE: ${LANG_INST[p.lang||"en"]}`;
+    const langRule = LANG_INST[p.lang||"en"];
+    const urduExtra = p.lang==="ur" ? "\nاہم: کبھی بھی ہندی الفاظ یا دیوناگری حروف استعمال نہ کرو۔ صرف خالص اردو اور عربی رسم الخط میں لکھو۔" : "";
+    return `You are Hearlio, a warm empathetic uplifting relationship and friendship guide. Tagline: "Your Personal HeartSpace". Speak like a caring wise best friend, never clinical. Use emojis naturally. User: ${p.name}, topic: ${p.topic}, mood: ${p.moodLabel} ${p.mood}.${p.memory?`\nMEMORY:\n${p.memory}`:""}\nBe warm, personal, actionable. Keep responses concise and heartfelt.\nLANGUAGE: ${langRule}${urduExtra}`;
   }
 
-  function doSpeak(text){if(!vOn)return;setSpeaking(true);speakText(text,vGender,()=>setSpeaking(false));}
+  function doSpeak(text){
+    if(!vOn)return;
+    // unlock audio on mobile/browser first
+    const unlock = new SpeechSynthesisUtterance("");
+    window.speechSynthesis.speak(unlock);
+    setTimeout(()=>{
+      setSpeaking(true);
+      speakText(text,vGender,()=>setSpeaking(false));
+    }, 100);
+  }
 
   function toggleListen(){
     if(listening){try{recRef.current?.stop();}catch(e){}setListening(false);return;}
@@ -375,14 +386,14 @@ function App(){
             )}
             <div ref={bottomRef}/>
           </div>
-          <div style={{display:"flex",gap:8,marginTop:10,alignItems:"center"}}>
-            <div style={{flex:1,display:"flex",borderRadius:24,border:`1.5px solid ${listening?"#534AB7":"#ddd"}`,overflow:"hidden",background:"white",transition:"border-color 0.2s"}}>
-              <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&sendMessage()} placeholder={listening?"Listening... 🎙️":"Share what's on your heart..."} style={{flex:1,padding:"10px 14px",border:"none",fontSize:14,outline:"none",background:"transparent"}}/>
-              <button onClick={toggleListen} style={{padding:"0 14px",border:"none",background:listening?"#534AB7":"transparent",color:listening?"white":"#534AB7",cursor:"pointer",fontSize:18,display:"flex",alignItems:"center"}}>
+          <div style={{display:"flex",gap:8,marginTop:10,alignItems:"center",flexWrap:"nowrap"}}>
+            <div style={{flex:1,display:"flex",borderRadius:24,border:`1.5px solid ${listening?"#534AB7":"#ddd"}`,overflow:"hidden",background:"white",transition:"border-color 0.2s",minWidth:0}}>
+              <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&sendMessage()} placeholder={listening?"Listening... 🎙️":"Share what's on your heart..."} style={{flex:1,padding:"10px 12px",border:"none",fontSize:14,outline:"none",background:"transparent",minWidth:0}}/>
+              <button onClick={toggleListen} title="Tap to speak" style={{padding:"0 12px",border:"none",background:listening?"#534AB7":"#EEEDFE",color:listening?"white":"#534AB7",cursor:"pointer",fontSize:16,display:"flex",alignItems:"center",justifyContent:"center",minWidth:42,flexShrink:0}}>
                 {listening?"⏹":"🎙️"}
               </button>
             </div>
-            <button onClick={sendMessage} disabled={loading||!input.trim()} style={{padding:"10px 18px",borderRadius:24,border:"none",background:loading||!input.trim()?"#ccc":"#534AB7",color:"white",fontSize:14,cursor:loading||!input.trim()?"default":"pointer"}}>Send 💕</button>
+            <button onClick={sendMessage} disabled={loading||!input.trim()} style={{padding:"10px 14px",borderRadius:24,border:"none",background:loading||!input.trim()?"#ccc":"#534AB7",color:"white",fontSize:14,cursor:loading||!input.trim()?"default":"pointer",flexShrink:0}}>Send 💕</button>
           </div>
           {listening&&<div style={{textAlign:"center",fontSize:12,color:"#534AB7",marginTop:6}}>🎙️ Listening in {activeLang.label} — tap ⏹ when done</div>}
           {listening&&input&&<button onClick={()=>{try{recRef.current?.stop();}catch(e){}setListening(false);setTimeout(sendMessage,300);}} style={{marginTop:6,padding:"8px",borderRadius:20,border:"none",background:"#534AB7",color:"white",fontSize:13,cursor:"pointer",width:"100%"}}>Send this message 💕</button>}
